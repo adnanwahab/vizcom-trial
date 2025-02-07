@@ -3,11 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Three.js Garment Mockup POC</title>
-  <!-- Three.js CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.153.0/build/three.min.js"></script>
-  <!-- Controls & Transform Controls -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.153.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.153.0/examples/js/controls/TransformControls.js"></script>
+  <!-- Replace old script tags with ES module imports -->
   <style>
     body {
       margin: 0;
@@ -57,6 +53,25 @@
       color: #666;
     }
   </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.169.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.169.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    //import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    //import { TransformControls } from 'three/addons/controls/TransformControls.js';
+    
+    // Make THREE available globally for the rest of your code
+    // window.THREE = THREE;
+    // window.OrbitControls = OrbitControls;
+    // window.TransformControls = TransformControls;
+  </script>
+
 </head>
 <body>
   <!-- 3D Scene -->
@@ -73,10 +88,12 @@
     <p class="hint">Drag & drop an image onto the 3D view to replace this source image.</p>
   </div>
 
-  <script>
-    /*************************************
-     * Global Variables and Setup
-     *************************************/
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { TransformControls } from 'three/addons/controls/TransformControls.js';
+
+    // Global variables
     let scene, camera, renderer, orbitControls, transformControls;
     let shirtMesh, shirtTexture;
     let sourceImageCanvas, sourceCtx;
@@ -86,8 +103,11 @@
     let selectionWidth, selectionHeight;
     let sourceImage; // Store the last dropped/loaded image
 
-    init();
-    animate();
+    // Wait for DOM to be ready
+    document.addEventListener('DOMContentLoaded', () => {
+      init();
+      animate();
+    });
 
     /*************************************
      * Initialize Scene
@@ -113,13 +133,13 @@
       container.appendChild(renderer.domElement);
 
       // Orbit Controls
-      orbitControls = new THREE.OrbitControls(camera, renderer.domElement);
+      orbitControls = new OrbitControls(camera, renderer.domElement);
       orbitControls.enableDamping = true;
 
       // Transform Controls
-      transformControls = new THREE.TransformControls(camera, renderer.domElement);
-      transformControls.addEventListener('change', render);
-      scene.add(transformControls);
+      // transformControls = new THREE.TransformControls(camera, renderer.domElement);
+      //  transformControls.addEventListener('change', render);
+      // scene.add(transformControls);
 
       // Add a basic directional light
       const dirLight = new THREE.DirectionalLight(0xffffff, 1);
@@ -146,8 +166,8 @@
       scene.add(shirtMesh);
 
       // Make the shirt transformable
-      transformControls.attach(shirtMesh);
-      scene.add(transformControls);
+      //transformControls.attach(shirtMesh);
+      //scene.add(transformControls);
 
       // Setup drag & drop for the 3D canvas container
       setupDragAndDrop(container);
@@ -283,7 +303,7 @@
      *************************************/
     function animate() {
       requestAnimationFrame(animate);
-      orbitControls.update();
+      //orbitControls.update();
       render();
     }
 

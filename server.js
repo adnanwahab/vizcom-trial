@@ -3,7 +3,7 @@ import { file } from "bun";
 
 // Built-in HTTP server in Bun
 Bun.serve({
-  port: 3000,
+  port: 8000,
   fetch(req) {
     // Parse the incoming URL
     const url = new URL(req.url);
@@ -59,4 +59,4 @@ function getMimeType(pathname) {
   }
 }
 
-console.log("Server running on http://localhost:3000");
+console.log("Server running on http://localhost:8000");
