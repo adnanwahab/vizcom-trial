@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Three.js Garment Mockup POC</title>
+  <!-- Three.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.153.0/build/three.min.js"></script>
+  <!-- Controls & Transform Controls -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.153.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.153.0/examples/js/controls/TransformControls.js"></script>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: sans-serif;
+      display: flex;
+      height: 100vh;
+    }
+    #canvas-container {
+      position: relative;
+      width: 70%;
+      height: 100%;
+      background: #333;
+    }
+    #ui-container {
+      width: 30%;
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      box-sizing: border-box;
+      background: #f5f5f5;
+    }
+    #sourceImageCanvas {
+      width: 100%;
+      max-height: 300px;
+      border: 1px solid #ccc;
+      cursor: crosshair;
+    }
+    #applyButton {
+      margin: 10px 0;
+      padding: 8px 16px;
+      font-size: 1em;
+      cursor: pointer;
+    }
+    #sourceImageCanvasWrapper {
+      position: relative;
+      width: 100%;
+    }
+    #selectionBox {
+      position: absolute;
+      border: 2px dashed #ff0000;
+      pointer-events: none;
+      display: none; /* hidden by default until user drags */
+    }
+    .hint {
+      font-size: 0.9em;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <!-- 3D Scene -->
+  <div id="canvas-container"></div>
+
+  <!-- UI Sidebar -->
+  <div id="ui-container">
+    <h3>Garment Region Selection</h3>
+    <div id="sourceImageCanvasWrapper">
+      <canvas id="sourceImageCanvas" width="400" height="300"></canvas>
+      <div id="selectionBox"></div>
+    </div>
+    <button id="applyButton">Apply to Model</button>
+    <p class="hint">Drag & drop an image onto the 3D view to replace this source image.</p>
+  </div>
+
+  <script>
+    /*************************************
+     * Global Variables and Setup
+     *************************************/
+    let scene, camera, renderer, orbitControls, transformControls;
+    let shirtMesh, shirtTexture;
+    let sourceImageCanvas, sourceCtx;
+    let selectionBox;
+    let isSelecting = false;
+    let startX, startY;
+    let selectionWidth, selectionHeight;
+    let sourceImage; // Store the last dropped/loaded image
+
+    init();
+    animate();
+
+    /*************************************
+     * Initialize Scene
+     *************************************/
+    function init() {
+      // Scene
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xaaaaaa);
+
+      // Camera
+      camera = new THREE.PerspectiveCamera(
+        45,
+        window.innerWidth * 0.7 / window.innerHeight, // note: 70% width
+        0.1,
+        1000
+      );
+      camera.position.set(0, 1.5, 3);
+
+      // Renderer
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      const container = document.getElementById("canvas-container");
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      container.appendChild(renderer.domElement);
+
+      // Orbit Controls
+      orbitControls = new THREE.OrbitControls(camera, renderer.domElement);
+      orbitControls.enableDamping = true;
+
+      // Transform Controls
+      transformControls = new THREE.TransformControls(camera, renderer.domElement);
+      transformControls.addEventListener('change', render);
+      scene.add(transformControls);
+
+      // Add a basic directional light
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+      dirLight.position.set(3, 10, 10);
+      scene.add(dirLight);
+      const ambLight = new THREE.AmbientLight(0xffffff, 0.3);
+      scene.add(ambLight);
+
+      // Basic ground plane
+      const planeGeometry = new THREE.PlaneGeometry(200, 200);
+      const planeMaterial = new THREE.MeshStandardMaterial({ color: 0x888888 });
+      const ground = new THREE.Mesh(planeGeometry, planeMaterial);
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.y = -1;
+      scene.add(ground);
+
+      // A placeholder shirt geometry (BoxGeometry as a stand-in)
+      // In a real scenario, load a T-shirt or garment 3D model (e.g., glTF) 
+      const shirtGeometry = new THREE.BoxGeometry(1, 1.5, 0.5);
+      shirtTexture = new THREE.TextureLoader().load('https://picsum.photos/id/237/200/300'); // random placeholder image
+      const shirtMaterial = new THREE.MeshStandardMaterial({ map: shirtTexture });
+      shirtMesh = new THREE.Mesh(shirtGeometry, shirtMaterial);
+      shirtMesh.position.y = 0.5;
+      scene.add(shirtMesh);
+
+      // Make the shirt transformable
+      transformControls.attach(shirtMesh);
+      scene.add(transformControls);
+
+      // Setup drag & drop for the 3D canvas container
+      setupDragAndDrop(container);
+
+      // UI Setup: Source image canvas
+      sourceImageCanvas = document.getElementById("sourceImageCanvas");
+      sourceCtx = sourceImageCanvas.getContext("2d");
+
+      selectionBox = document.getElementById("selectionBox");
+      sourceImage = new Image();
+      sourceImage.onload = function() {
+        drawImageToSourceCanvas(sourceImage);
+      };
+      // Load a default image for demonstration
+      sourceImage.src = "https://picsum.photos/400/300";
+
+      // Setup manual selection events
+      sourceImageCanvas.addEventListener("mousedown", startSelection);
+      sourceImageCanvas.addEventListener("mousemove", updateSelection);
+      sourceImageCanvas.addEventListener("mouseup", endSelection);
+
+      // Button: Apply selected area to the model
+      document.getElementById("applyButton").addEventListener("click", applyToModel);
+
+      window.addEventListener("resize", onWindowResize);
+    }
+
+    /*************************************
+     * Event Handlers
+     *************************************/
+    function onWindowResize() {
+      const container = document.getElementById("canvas-container");
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      render();
+    }
+
+    function startSelection(e) {
+      isSelecting = true;
+      const rect = sourceImageCanvas.getBoundingClientRect();
+      startX = e.clientX - rect.left;
+      startY = e.clientY - rect.top;
+      selectionBox.style.left = startX + 'px';
+      selectionBox.style.top = startY + 'px';
+      selectionBox.style.width = '0px';
+      selectionBox.style.height = '0px';
+      selectionBox.style.display = 'block';
+    }
+
+    function updateSelection(e) {
+      if (!isSelecting) return;
+      const rect = sourceImageCanvas.getBoundingClientRect();
+      const currentX = e.clientX - rect.left;
+      const currentY = e.clientY - rect.top;
+      selectionWidth = currentX - startX;
+      selectionHeight = currentY - startY;
+
+      selectionBox.style.width = Math.abs(selectionWidth) + 'px';
+      selectionBox.style.height = Math.abs(selectionHeight) + 'px';
+      selectionBox.style.left = Math.min(startX, currentX) + 'px';
+      selectionBox.style.top = Math.min(startY, currentY) + 'px';
+    }
+
+    function endSelection(e) {
+      isSelecting = false;
+    }
+
+    function applyToModel() {
+      if (!selectionWidth || !selectionHeight) return;
+      // Get the cropped area from source canvas
+      const cropCanvas = document.createElement('canvas');
+      cropCanvas.width = Math.abs(selectionWidth);
+      cropCanvas.height = Math.abs(selectionHeight);
+      const cropCtx = cropCanvas.getContext('2d');
+
+      // Source and Destination coordinates
+      const sx = parseInt(selectionBox.style.left, 10);
+      const sy = parseInt(selectionBox.style.top, 10);
+      const sw = parseInt(selectionBox.style.width, 10);
+      const sh = parseInt(selectionBox.style.height, 10);
+
+      // Draw cropped region onto an offscreen canvas
+      cropCtx.drawImage(
+        sourceImageCanvas,
+        sx, sy, sw, sh,
+        0, 0, sw, sh
+      );
+
+      // Create new texture from the cropped image
+      const croppedTexture = new THREE.CanvasTexture(cropCanvas);
+      shirtMesh.material.map = croppedTexture;
+      shirtMesh.material.needsUpdate = true;
+
+      // Reset selection
+      selectionBox.style.display = 'none';
+      selectionWidth = 0;
+      selectionHeight = 0;
+    }
+
+    /*************************************
+     * Utility: Draw image onto source canvas
+     *************************************/
+    function drawImageToSourceCanvas(img) {
+      // Fill canvas with the image
+      sourceCtx.clearRect(0, 0, sourceImageCanvas.width, sourceImageCanvas.height);
+      // Scale image to fit or fill the canvas:
+      sourceCtx.drawImage(img, 0, 0, sourceImageCanvas.width, sourceImageCanvas.height);
+    }
+
+    /*************************************
+     * Drag & Drop Setup
+     *************************************/
+    function setupDragAndDrop(dropTarget) {
+      dropTarget.addEventListener('dragover', (e) => {
+        e.preventDefault();
+      });
+      dropTarget.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          const file = e.dataTransfer.files[0];
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            sourceImage.src = ev.target.result;
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+    }
+
+    /*************************************
+     * Animation & Render
+     *************************************/
+    function animate() {
+      requestAnimationFrame(animate);
+      orbitControls.update();
+      render();
+    }
+
+    function render() {
+      renderer.render(scene, camera);
+    }
+  </script>
+</body>
+</html>
