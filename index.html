@@ -159,7 +159,7 @@
       // A placeholder shirt geometry (BoxGeometry as a stand-in)
       // In a real scenario, load a T-shirt or garment 3D model (e.g., glTF) 
       const shirtGeometry = new THREE.BoxGeometry(1, 1.5, 0.5);
-      shirtTexture = new THREE.TextureLoader().load('https://picsum.photos/id/237/200/300'); // random placeholder image
+      shirtTexture = new THREE.TextureLoader().load('https://picsum.photos/id/237/200/300', undefined, undefined, undefined, THREE.CrossOrigin);
       const shirtMaterial = new THREE.MeshStandardMaterial({ map: shirtTexture });
       shirtMesh = new THREE.Mesh(shirtGeometry, shirtMaterial);
       shirtMesh.position.y = 0.5;
@@ -178,6 +178,7 @@
 
       selectionBox = document.getElementById("selectionBox");
       sourceImage = new Image();
+      sourceImage.crossOrigin = "anonymous";
       sourceImage.onload = function() {
         drawImageToSourceCanvas(sourceImage);
       };
@@ -242,7 +243,7 @@
       const cropCanvas = document.createElement('canvas');
       cropCanvas.width = Math.abs(selectionWidth);
       cropCanvas.height = Math.abs(selectionHeight);
-      const cropCtx = cropCanvas.getContext('2d');
+      const cropCtx = cropCanvas.getContext('2d', { willReadFrequently: true });
 
       // Source and Destination coordinates
       const sx = parseInt(selectionBox.style.left, 10);
