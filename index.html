@@ -85,6 +85,7 @@
       <div id="selectionBox"></div>
     </div>
     <button id="applyButton">Apply to Model</button>
+    <button id="toggleNormalMap">Toggle Normal Map</button>
     <p class="hint">Drag & drop an image onto the 3D view to replace this source image.</p>
   </div>
 
@@ -102,6 +103,8 @@
     let startX, startY;
     let selectionWidth, selectionHeight;
     let sourceImage; // Store the last dropped/loaded image
+    let showNormalMap = false;
+    let normalMapTexture;
 
     // Wait for DOM to be ready
     document.addEventListener('DOMContentLoaded', () => {
@@ -156,18 +159,31 @@
       ground.position.y = -1;
       scene.add(ground);
 
-      // A placeholder shirt geometry (BoxGeometry as a stand-in)
-      // In a real scenario, load a T-shirt or garment 3D model (e.g., glTF) 
-      const shirtGeometry = new THREE.BoxGeometry(1, 1.5, 0.5);
-      shirtTexture = new THREE.TextureLoader().load('https://picsum.photos/id/237/200/300', undefined, undefined, undefined, THREE.CrossOrigin);
-      const shirtMaterial = new THREE.MeshStandardMaterial({ map: shirtTexture });
-      shirtMesh = new THREE.Mesh(shirtGeometry, shirtMaterial);
-      shirtMesh.position.y = 0.5;
+      // Replace the torus geometry with a vase geometry
+      const points = [];
+      for (let i = 0; i < 10; i++) {
+        const t = i / 9;
+        // Create a vase-like curve
+        const radius = 0.3 + Math.sin(t * Math.PI) * 0.2;
+        points.push(new THREE.Vector2(radius, t * 1.5));
+      }
+      const vaseGeometry = new THREE.LatheGeometry(points, 32);
+      shirtTexture = new THREE.TextureLoader().load('https://picsum.photos/id/237/200/300');
+      normalMapTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/waternormals.jpg');
+      
+      const shirtMaterial = new THREE.MeshStandardMaterial({ 
+          map: shirtTexture,
+          normalMap: normalMapTexture,
+          normalScale: new THREE.Vector2(1, 1)
+      });
+      
+      shirtMesh = new THREE.Mesh(vaseGeometry, shirtMaterial);
+      shirtMesh.position.y = 0;  // Adjusted position to sit on the ground
       scene.add(shirtMesh);
 
       // Make the shirt transformable
-      //transformControls.attach(shirtMesh);
-      //scene.add(transformControls);
+      // transformControls.attach(shirtMesh);
+      // scene.add(transformControls);
 
       // Setup drag & drop for the 3D canvas container
       setupDragAndDrop(container);
@@ -192,6 +208,17 @@
 
       // Button: Apply selected area to the model
       document.getElementById("applyButton").addEventListener("click", applyToModel);
+
+      // Add normal map toggle button handler
+      document.getElementById("toggleNormalMap").addEventListener("click", () => {
+        showNormalMap = !showNormalMap;
+        if (showNormalMap) {
+          shirtMesh.material.normalMap = normalMapTexture;
+        } else {
+          shirtMesh.material.normalMap = null;
+        }
+        shirtMesh.material.needsUpdate = true;
+      });
 
       window.addEventListener("resize", onWindowResize);
     }
@@ -239,31 +266,29 @@
 
     function applyToModel() {
       if (!selectionWidth || !selectionHeight) return;
-      // Get the cropped area from source canvas
+      
       const cropCanvas = document.createElement('canvas');
       cropCanvas.width = Math.abs(selectionWidth);
       cropCanvas.height = Math.abs(selectionHeight);
       const cropCtx = cropCanvas.getContext('2d', { willReadFrequently: true });
 
-      // Source and Destination coordinates
       const sx = parseInt(selectionBox.style.left, 10);
       const sy = parseInt(selectionBox.style.top, 10);
       const sw = parseInt(selectionBox.style.width, 10);
       const sh = parseInt(selectionBox.style.height, 10);
 
-      // Draw cropped region onto an offscreen canvas
       cropCtx.drawImage(
         sourceImageCanvas,
         sx, sy, sw, sh,
         0, 0, sw, sh
       );
 
-      // Create new texture from the cropped image
       const croppedTexture = new THREE.CanvasTexture(cropCanvas);
       shirtMesh.material.map = croppedTexture;
+      // Preserve normal map state when updating texture
+      shirtMesh.material.normalMap = showNormalMap ? normalMapTexture : null;
       shirtMesh.material.needsUpdate = true;
 
-      // Reset selection
       selectionBox.style.display = 'none';
       selectionWidth = 0;
       selectionHeight = 0;
