@@ -52,6 +52,22 @@
       font-size: 0.9em;
       color: #666;
     }
+    .texture-controls {
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    .control-group {
+      margin: 10px 0;
+    }
+    .control-group label {
+      display: block;
+      margin-bottom: 5px;
+    }
+    .control-group input {
+      width: 100%;
+    }
   </style>
   <script type="importmap">
     {
@@ -87,6 +103,55 @@
     <button id="applyButton">Apply to Model</button>
     <button id="toggleNormalMap">Toggle Normal Map</button>
     <button id="toggleMaterial">Toggle Phong Material</button>
+    <div class="texture-controls">
+      <h4>Texture Controls</h4>
+      <div class="control-group">
+        <label>Repeat X: <span id="repeatXValue">1</span></label>
+        <input type="range" id="repeatX" min="0.1" max="5" step="0.1" value="1">
+      </div>
+      <div class="control-group">
+        <label>Repeat Y: <span id="repeatYValue">1</span></label>
+        <input type="range" id="repeatY" min="0.1" max="5" step="0.1" value="1">
+      </div>
+      <div class="control-group">
+        <label>Offset X: <span id="offsetXValue">0</span></label>
+        <input type="range" id="offsetX" min="-1" max="1" step="0.1" value="0">
+      </div>
+      <div class="control-group">
+        <label>Offset Y: <span id="offsetYValue">0</span></label>
+        <input type="range" id="offsetY" min="-1" max="1" step="0.1" value="0">
+      </div>
+      <div class="control-group">
+        <label>Rotation: <span id="rotationValue">0°</span></label>
+        <input type="range" id="rotation" min="0" max="360" step="1" value="0">
+      </div>
+
+      <!-- New Perspective Wrapping Controls -->
+      <div class="control-group">
+        <label>Perspective Wrapping:</label>
+        <input type="checkbox" id="perspectiveWrapping">
+      </div>
+      <div class="control-group">
+        <label>Wrap S:</label>
+        <select id="wrapS">
+          <option value="RepeatWrapping">Repeat</option>
+          <option value="ClampToEdgeWrapping">Clamp</option>
+          <option value="MirroredRepeatWrapping">Mirrored Repeat</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>Wrap T:</label>
+        <select id="wrapT">
+          <option value="RepeatWrapping">Repeat</option>
+          <option value="ClampToEdgeWrapping">Clamp</option>
+          <option value="MirroredRepeatWrapping">Mirrored Repeat</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>Perspective Threshold (dot product): <span id="perspectiveThresholdValue">0.5</span></label>
+        <input type="range" id="perspectiveThreshold" min="0" max="1" step="0.01" value="0.5">
+      </div>
+    </div>
     <p class="hint">Drag & drop an image onto the 3D view to replace this source image.</p>
   </div>
 
@@ -161,15 +226,24 @@
       ground.position.y = -1;
       scene.add(ground);
 
-      // Replace the torus geometry with a vase geometry
+      // Modify the vase geometry to have better UV mapping
       const points = [];
       for (let i = 0; i < 10; i++) {
         const t = i / 9;
-        // Create a vase-like curve
         const radius = 0.3 + Math.sin(t * Math.PI) * 0.2;
         points.push(new THREE.Vector2(radius, t * 1.5));
       }
       const vaseGeometry = new THREE.LatheGeometry(points, 32);
+      
+      // Improve UV mapping for the vase
+      const uvAttribute = vaseGeometry.attributes.uv;
+      for (let i = 0; i < uvAttribute.count; i++) {
+        const u = uvAttribute.getX(i);
+        const v = uvAttribute.getY(i);
+        // Adjust UV coordinates to better wrap around the vase
+        uvAttribute.setXY(i, u * 1, v);
+      }
+
       shirtTexture = new THREE.TextureLoader().load('https://picsum.photos/id/237/200/300');
       normalMapTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/waternormals.jpg');
       
@@ -251,6 +325,9 @@
         shirtMesh.material.needsUpdate = true;
       });
 
+      // Setup texture controls
+      setupTextureControls();
+
       window.addEventListener("resize", onWindowResize);
     }
 
@@ -315,9 +392,15 @@
       );
 
       const croppedTexture = new THREE.CanvasTexture(cropCanvas);
+      croppedTexture.wrapS = THREE.RepeatWrapping;
+      croppedTexture.wrapT = THREE.RepeatWrapping;
+      
       shirtMesh.material.map = croppedTexture;
-      // Preserve normal map state when updating texture
       shirtMesh.material.normalMap = showNormalMap ? normalMapTexture : null;
+      
+      // Apply current texture transform settings
+      updateTextureTransform();
+      
       shirtMesh.material.needsUpdate = true;
 
       selectionBox.style.display = 'none';
@@ -356,11 +439,91 @@
     }
 
     /*************************************
+     * Texture Controls
+     *************************************/
+    function setupTextureControls() {
+      const controls = ['repeatX', 'repeatY', 'offsetX', 'offsetY', 'rotation'];
+      
+      controls.forEach(control => {
+        const slider = document.getElementById(control);
+        const valueDisplay = document.getElementById(`${control}Value`);
+        
+        slider.addEventListener('input', (e) => {
+          const value = parseFloat(e.target.value);
+          valueDisplay.textContent = control.includes('rotation') ? `${value}°` : value;
+          updateTextureTransform();
+        });
+      });
+
+      // Update perspective threshold display value live
+      const perspectiveThresholdSlider = document.getElementById("perspectiveThreshold");
+      perspectiveThresholdSlider.addEventListener("input", (e) => {
+        document.getElementById("perspectiveThresholdValue").textContent = e.target.value;
+      });
+    }
+
+    function updateTextureTransform() {
+      if (!shirtMesh.material.map) return;
+
+      const repeatX = parseFloat(document.getElementById('repeatX').value);
+      const repeatY = parseFloat(document.getElementById('repeatY').value);
+      const offsetX = parseFloat(document.getElementById('offsetX').value);
+      const offsetY = parseFloat(document.getElementById('offsetY').value);
+      const rotation = parseFloat(document.getElementById('rotation').value) * Math.PI / 180;
+
+      shirtMesh.material.map.repeat.set(repeatX, repeatY);
+      shirtMesh.material.map.offset.set(offsetX, offsetY);
+      shirtMesh.material.map.rotation = rotation;
+      shirtMesh.material.map.center.set(0.5, 0.5); // Set rotation center to middle of texture
+      shirtMesh.material.map.needsUpdate = true;
+    }
+
+    /*************************************
+     * Perspective Wrapping: Additional Wrapping Controls
+     *************************************/
+    function updatePerspectiveWrapping() {
+      // Only update if the "Perspective Wrapping" checkbox is enabled.
+      const perspectiveEnabled = document.getElementById("perspectiveWrapping").checked;
+      if (!perspectiveEnabled) return;
+
+      const threshold = parseFloat(document.getElementById("perspectiveThreshold").value);
+      const wrapSValue = document.getElementById("wrapS").value;
+      const wrapTValue = document.getElementById("wrapT").value;
+
+      // Get camera's current view direction.
+      let camDir = new THREE.Vector3();
+      camera.getWorldDirection(camDir);
+
+      // Assume the model's front is along the +Z axis.
+      const modelForward = new THREE.Vector3(0, 0, 1);
+      const dot = camDir.dot(modelForward);
+
+      // If the camera is within the threshold (i.e. looking at the front of the model),
+      // apply the selected wrapping modes.
+      if (dot > threshold) {
+        if (shirtMesh.material.map) {
+          shirtMesh.material.map.wrapS = THREE[wrapSValue];
+          shirtMesh.material.map.wrapT = THREE[wrapTValue];
+          shirtMesh.material.map.needsUpdate = true;
+        }
+      } else {
+        // Otherwise, you can revert to your default wrapping mode,
+        // for example, to THREE.RepeatWrapping.
+        if (shirtMesh.material.map) {
+          shirtMesh.material.map.wrapS = THREE.RepeatWrapping;
+          shirtMesh.material.map.wrapT = THREE.RepeatWrapping;
+          shirtMesh.material.map.needsUpdate = true;
+        }
+      }
+    }
+
+    /*************************************
      * Animation & Render
      *************************************/
     function animate() {
       requestAnimationFrame(animate);
       //orbitControls.update();
+      updatePerspectiveWrapping(); // Updates our additional wrapping only when active
       render();
     }
 
