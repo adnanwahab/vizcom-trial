@@ -2,8 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Three.js Garment Mockup POC</title>
-  <!-- Replace old script tags with ES module imports -->
+  <title>Three.js Smart Wrapping Demo</title>
   <style>
     body {
       margin: 0;
@@ -25,6 +24,7 @@
       padding: 10px;
       box-sizing: border-box;
       background: #f5f5f5;
+      overflow-y: auto;
     }
     #sourceImageCanvas {
       width: 100%;
@@ -52,7 +52,7 @@
       font-size: 0.9em;
       color: #666;
     }
-    .texture-controls {
+    .texture-controls, .material-controls {
       margin-top: 20px;
       padding: 10px;
       border: 1px solid #ccc;
@@ -69,6 +69,8 @@
       width: 100%;
     }
   </style>
+
+  <!-- We’ll use import maps for Three.js & add-ons -->
   <script type="importmap">
     {
       "imports": {
@@ -79,101 +81,28 @@
   </script>
   <script type="module">
     import * as THREE from 'three';
-    //import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-    //import { TransformControls } from 'three/addons/controls/TransformControls.js';
-    
-    // Make THREE available globally for the rest of your code
-    // window.THREE = THREE;
-    // window.OrbitControls = OrbitControls;
-    // window.TransformControls = TransformControls;
-  </script>
-
-</head>
-<body>
-  <!-- 3D Scene -->
-  <div id="canvas-container"></div>
-
-  <!-- UI Sidebar -->
-  <div id="ui-container">
-    <h3>Garment Selection Region </h3>
-    <div id="sourceImageCanvasWrapper">
-      <canvas id="sourceImageCanvas" width="400" height="300"></canvas>
-      <div id="selectionBox"></div>
-    </div>
-    <button id="applyButton">Apply to Model</button>
-    <button id="toggleNormalMap">Toggle Normal Map</button>
-    <button id="toggleMaterial">Toggle Phong Material</button>
-    <div class="texture-controls">
-      <h4>Texture Controls</h4>
-      <div class="control-group">
-        <label>Repeat X: <span id="repeatXValue">1</span></label>
-        <input type="range" id="repeatX" min="0.1" max="5" step="0.1" value="1">
-      </div>
-      <div class="control-group">
-        <label>Repeat Y: <span id="repeatYValue">1</span></label>
-        <input type="range" id="repeatY" min="0.1" max="5" step="0.1" value="1">
-      </div>
-      <div class="control-group">
-        <label>Offset X: <span id="offsetXValue">0</span></label>
-        <input type="range" id="offsetX" min="-1" max="1" step="0.1" value="0">
-      </div>
-      <div class="control-group">
-        <label>Offset Y: <span id="offsetYValue">0</span></label>
-        <input type="range" id="offsetY" min="-1" max="1" step="0.1" value="0">
-      </div>
-      <div class="control-group">
-        <label>Rotation: <span id="rotationValue">0°</span></label>
-        <input type="range" id="rotation" min="0" max="360" step="1" value="0">
-      </div>
-
-      <!-- New Perspective Wrapping Controls -->
-      <div class="control-group">
-        <label>Perspective Wrapping:</label>
-        <input type="checkbox" id="perspectiveWrapping">
-      </div>
-      <div class="control-group">
-        <label>Wrap S:</label>
-        <select id="wrapS">
-          <option value="RepeatWrapping">Repeat</option>
-          <option value="ClampToEdgeWrapping">Clamp</option>
-          <option value="MirroredRepeatWrapping">Mirrored Repeat</option>
-        </select>
-      </div>
-      <div class="control-group">
-        <label>Wrap T:</label>
-        <select id="wrapT">
-          <option value="RepeatWrapping">Repeat</option>
-          <option value="ClampToEdgeWrapping">Clamp</option>
-          <option value="MirroredRepeatWrapping">Mirrored Repeat</option>
-        </select>
-      </div>
-      <div class="control-group">
-        <label>Perspective Threshold (dot product): <span id="perspectiveThresholdValue">0.5</span></label>
-        <input type="range" id="perspectiveThreshold" min="0" max="1" step="0.01" value="0.5">
-      </div>
-    </div>
-    <p class="hint">Drag & drop an image onto the 3D view to replace this source image.</p>
-  </div>
-
-  <script type="module">
-    import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { TransformControls } from 'three/addons/controls/TransformControls.js';
 
     // Global variables
-    let scene, camera, renderer, orbitControls, transformControls;
+    let scene, camera, renderer, orbitControls;
     let shirtMesh, shirtTexture;
     let sourceImageCanvas, sourceCtx;
     let selectionBox;
     let isSelecting = false;
     let startX, startY;
     let selectionWidth, selectionHeight;
-    let sourceImage; // Store the last dropped/loaded image
+    let sourceImage;  // Store the last dropped/loaded image
     let showNormalMap = false;
     let normalMapTexture;
     let isPhongMaterial = false;
 
-    // Wait for DOM to be ready
+    // NEW: For “Smart Wrapping” example
+    let isSmartWrapping = false;
+    let smartWrapShaderMaterial;  // Our custom triplanar or normal-based mapping
+    let fallbackMaterial;         // Our original or standard material
+
+    // Wait for DOM
     document.addEventListener('DOMContentLoaded', () => {
       init();
       animate();
@@ -183,14 +112,13 @@
      * Initialize Scene
      *************************************/
     function init() {
-      // Scene
+      // Scene & Camera
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0xaaaaaa);
 
-      // Camera
       camera = new THREE.PerspectiveCamera(
         45,
-        window.innerWidth * 0.7 / window.innerHeight, // note: 70% width
+        window.innerWidth * 0.7 / window.innerHeight, // note: 70% width for main container
         0.1,
         1000
       );
@@ -206,12 +134,7 @@
       orbitControls = new OrbitControls(camera, renderer.domElement);
       orbitControls.enableDamping = true;
 
-      // Transform Controls
-      // transformControls = new THREE.TransformControls(camera, renderer.domElement);
-      //  transformControls.addEventListener('change', render);
-      // scene.add(transformControls);
-
-      // Add a basic directional light
+      // Lights
       const dirLight = new THREE.DirectionalLight(0xffffff, 1);
       dirLight.position.set(3, 10, 10);
       scene.add(dirLight);
@@ -226,7 +149,7 @@
       ground.position.y = -1;
       scene.add(ground);
 
-      // Modify the vase geometry to have better UV mapping
+      // Our vase geometry (lathe)
       const points = [];
       for (let i = 0; i < 10; i++) {
         const t = i / 9;
@@ -234,64 +157,143 @@
         points.push(new THREE.Vector2(radius, t * 1.5));
       }
       const vaseGeometry = new THREE.LatheGeometry(points, 32);
-      
-      // Improve UV mapping for the vase
+
+      // Adjust the default UVs a bit (optional)
       const uvAttribute = vaseGeometry.attributes.uv;
       for (let i = 0; i < uvAttribute.count; i++) {
         const u = uvAttribute.getX(i);
         const v = uvAttribute.getY(i);
-        // Adjust UV coordinates to better wrap around the vase
-        uvAttribute.setXY(i, u * 1, v);
+        uvAttribute.setXY(i, u, v);
       }
 
+      // Load default textures
       shirtTexture = new THREE.TextureLoader().load('https://picsum.photos/id/237/200/300');
       normalMapTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/waternormals.jpg');
-      
-      const shirtMaterial = new THREE.MeshPhysicalMaterial({ 
-          color: 0x049ef4,  // Bright blue color matching the reference
-          metalness: 0.3,
-          roughness: 0.2,
-          clearcoat: 1.0,
-          clearcoatRoughness: 0.1,
-          envMapIntensity: 1.0,
-          transparent: false,
-          opacity: 1,
-          side: THREE.FrontSide
+
+      // Create an initial “standard” material
+      fallbackMaterial = new THREE.MeshPhysicalMaterial({ 
+        color: 0x049ef4,
+        metalness: 0.3,
+        roughness: 0.2,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.1,
+        envMapIntensity: 1.0,
+        side: THREE.FrontSide
       });
-      
-      shirtMesh = new THREE.Mesh(vaseGeometry, shirtMaterial);
-      shirtMesh.position.y = 0;  // Adjusted position to sit on the ground
+
+      // Mesh
+      shirtMesh = new THREE.Mesh(vaseGeometry, fallbackMaterial);
+      shirtMesh.position.y = 0;
       scene.add(shirtMesh);
 
-      // Make the shirt transformable
-      // transformControls.attach(shirtMesh);
-      // scene.add(transformControls);
+      // Create a “smart wrap” material (simple triplanar example).
+      // In practice, you could do a more sophisticated approach or
+      // fetch new UVs / texture from your Python segment-anything backend.
+      smartWrapShaderMaterial = new THREE.ShaderMaterial({
+        uniforms: {
+          map:         { value: shirtTexture },
+          normalMap:   { value: null },  // toggled later
+          scale:       { value: 1.0 },
+          metalness:   { value: 0.3 },
+          roughness:   { value: 0.2 },
+          baseColor:   { value: new THREE.Color(0xffffff) },
+        },
+        vertexShader: `
+          varying vec3 vWorldPosition;
+          varying vec3 vNormal;
+          void main() {
+            vec4 worldPos = modelMatrix * vec4(position, 1.0);
+            vWorldPosition = worldPos.xyz;
+            vec4 mvPosition = viewMatrix * worldPos;
+            vNormal = normalize(normalMatrix * normal);
+            gl_Position = projectionMatrix * mvPosition;
+          }
+        `,
+        fragmentShader: `
+          // Simple triplanar projection for demonstration
+          // Usually you’d blend based on absolute normal components
+          // to reduce seams. 
+          uniform sampler2D map;
+          uniform sampler2D normalMap;
+          uniform float scale;
+          uniform float metalness;
+          uniform float roughness;
+          uniform vec3 baseColor;
 
-      // Setup drag & drop for the 3D canvas container
+          varying vec3 vWorldPosition;
+          varying vec3 vNormal;
+
+          // Helper to sample the map in a plane
+          vec4 sampleTriplanar(vec3 worldPos, vec3 normal) {
+            // Normalize for blending
+            vec3 n = normalize(abs(normal));
+            
+            // For each axis, project worldPos onto that plane
+            // scale can be used to tile the texture
+            vec2 uvX = worldPos.zy * scale;  // X axis
+            vec2 uvY = worldPos.xz * scale;  // Y axis
+            vec2 uvZ = worldPos.xy * scale;  // Z axis
+
+            // Weighted blend
+            float blendX = n.x;
+            float blendY = n.y;
+            float blendZ = n.z;
+            float sum = blendX + blendY + blendZ;
+            blendX /= sum;
+            blendY /= sum;
+            blendZ /= sum;
+
+            vec4 colorX = texture2D(map, uvX);
+            vec4 colorY = texture2D(map, uvY);
+            vec4 colorZ = texture2D(map, uvZ);
+
+            return colorX * blendX + colorY * blendY + colorZ * blendZ;
+          }
+
+          void main() {
+            vec3 normal = normalize(vNormal);
+            vec3 worldPos = vWorldPosition;
+
+            // Basic triplanar color
+            vec4 baseTexColor = sampleTriplanar(worldPos, normal);
+
+            // Combine with baseColor
+            vec3 finalColor = baseTexColor.rgb * baseColor;
+
+            // Just output as a simple lit color for demonstration
+            gl_FragColor = vec4(finalColor, 1.0);
+          }
+        `,
+        // Let Three.js handle the standard lighting with a MeshPhysicalMaterial approach?
+        // For a complete physically-based approach, you’d implement the entire PBR shading in the fragment shader.
+        // Here, we keep it simple. 
+        lights: false  // We'll rely on approximate color output
+      });
+
+      // Setup DnD
       setupDragAndDrop(container);
 
-      // UI Setup: Source image canvas
+      // Source image canvas
       sourceImageCanvas = document.getElementById("sourceImageCanvas");
       sourceCtx = sourceImageCanvas.getContext("2d");
-
       selectionBox = document.getElementById("selectionBox");
+
       sourceImage = new Image();
       sourceImage.crossOrigin = "anonymous";
       sourceImage.onload = function() {
         drawImageToSourceCanvas(sourceImage);
       };
-      // Load a default image for demonstration
+      // Load a default
       sourceImage.src = "https://picsum.photos/400/300";
 
-      // Setup manual selection events
+      // Setup selection events
       sourceImageCanvas.addEventListener("mousedown", startSelection);
       sourceImageCanvas.addEventListener("mousemove", updateSelection);
       sourceImageCanvas.addEventListener("mouseup", endSelection);
 
-      // Button: Apply selected area to the model
+      // Buttons
       document.getElementById("applyButton").addEventListener("click", applyToModel);
 
-      // Add normal map toggle button handler
       document.getElementById("toggleNormalMap").addEventListener("click", () => {
         showNormalMap = !showNormalMap;
         if (showNormalMap) {
@@ -302,37 +304,59 @@
         shirtMesh.material.needsUpdate = true;
       });
 
-      // Add material toggle button handler
       document.getElementById("toggleMaterial").addEventListener("click", () => {
         isPhongMaterial = !isPhongMaterial;
-        const currentMap = shirtMesh.material.map;
+
+        const currentMap       = shirtMesh.material.map;
         const currentNormalMap = shirtMesh.material.normalMap;
-        
+
         if (isPhongMaterial) {
           shirtMesh.material = new THREE.MeshPhongMaterial({
             map: currentMap,
             normalMap: currentNormalMap,
-            normalScale: new THREE.Vector2(1, 1),
             shininess: 30
           });
         } else {
-          shirtMesh.material = new THREE.MeshStandardMaterial({
-            map: currentMap,
-            normalMap: currentNormalMap,
-            normalScale: new THREE.Vector2(1, 1)
-          });
+          shirtMesh.material = fallbackMaterial;
+          shirtMesh.material.map       = currentMap;
+          shirtMesh.material.normalMap = currentNormalMap;
         }
         shirtMesh.material.needsUpdate = true;
       });
 
-      // Setup texture controls
+      // NEW: Toggle Smart Wrapping
+      const smartWrapBtn = document.createElement('button');
+      smartWrapBtn.innerText = 'Toggle Smart Wrapping';
+      smartWrapBtn.style.margin = '10px 0';
+      smartWrapBtn.onclick = () => {
+        isSmartWrapping = !isSmartWrapping;
+        if (isSmartWrapping) {
+          // Switch to the custom shader
+          smartWrapShaderMaterial.uniforms.map.value = shirtMesh.material.map;
+          // We’ll skip normalMap usage in the demo, but you could feed it in similarly
+          shirtMesh.material = smartWrapShaderMaterial;
+        } else {
+          // Switch back to fallback or whichever was in use before
+          shirtMesh.material = fallbackMaterial;
+          // Reassign the last map we had
+          shirtMesh.material.map = smartWrapShaderMaterial.uniforms.map.value;
+        }
+        shirtMesh.material.needsUpdate = true;
+      };
+      document.getElementById('ui-container').appendChild(smartWrapBtn);
+
+      // Setup standard texture controls
       setupTextureControls();
 
+      // Setup advanced material controls
+      setupMaterialControls();
+
+      // Window resize
       window.addEventListener("resize", onWindowResize);
     }
 
     /*************************************
-     * Event Handlers
+     * Window Resize
      *************************************/
     function onWindowResize() {
       const container = document.getElementById("canvas-container");
@@ -342,6 +366,9 @@
       render();
     }
 
+    /*************************************
+     * Selection
+     *************************************/
     function startSelection(e) {
       isSelecting = true;
       const rect = sourceImageCanvas.getBoundingClientRect();
@@ -372,9 +399,13 @@
       isSelecting = false;
     }
 
-    function applyToModel() {
+    /*************************************
+     * Apply selected area to the model
+     *************************************/
+    async function applyToModel() {
       if (!selectionWidth || !selectionHeight) return;
       
+      // Crop out selection from source canvas
       const cropCanvas = document.createElement('canvas');
       cropCanvas.width = Math.abs(selectionWidth);
       cropCanvas.height = Math.abs(selectionHeight);
@@ -391,16 +422,32 @@
         0, 0, sw, sh
       );
 
-      const croppedTexture = new THREE.CanvasTexture(cropCanvas);
-      croppedTexture.wrapS = THREE.RepeatWrapping;
-      croppedTexture.wrapT = THREE.RepeatWrapping;
-      
-      shirtMesh.material.map = croppedTexture;
-      shirtMesh.material.normalMap = showNormalMap ? normalMapTexture : null;
-      
-      // Apply current texture transform settings
+      // Optionally, send the cropped image to Python backend for segmentation / resizing:
+      // let processedImgDataUrl = await sendToSegmentAnything(cropCanvas);
+      // if (!processedImgDataUrl) {
+      //   processedImgDataUrl = cropCanvas.toDataURL(); // fallback
+      // }
+
+      const newTexture = new THREE.CanvasTexture(cropCanvas);
+      newTexture.wrapS = THREE.RepeatWrapping;
+      newTexture.wrapT = THREE.RepeatWrapping;
+
+      // If we’re in “smart” mode, set the texture on our custom shader’s uniform;
+      // otherwise, assign to the normal material’s map.
+      if (isSmartWrapping) {
+        smartWrapShaderMaterial.uniforms.map.value = newTexture;
+      } else {
+        shirtMesh.material.map = newTexture;
+      }
+
+      // Re-apply normal map if we had it toggled
+      if (showNormalMap) {
+        shirtMesh.material.normalMap = normalMapTexture;
+      } else {
+        shirtMesh.material.normalMap = null;
+      }
+
       updateTextureTransform();
-      
       shirtMesh.material.needsUpdate = true;
 
       selectionBox.style.display = 'none';
@@ -412,9 +459,7 @@
      * Utility: Draw image onto source canvas
      *************************************/
     function drawImageToSourceCanvas(img) {
-      // Fill canvas with the image
       sourceCtx.clearRect(0, 0, sourceImageCanvas.width, sourceImageCanvas.height);
-      // Scale image to fit or fill the canvas:
       sourceCtx.drawImage(img, 0, 0, sourceImageCanvas.width, sourceImageCanvas.height);
     }
 
@@ -443,7 +488,6 @@
      *************************************/
     function setupTextureControls() {
       const controls = ['repeatX', 'repeatY', 'offsetX', 'offsetY', 'rotation'];
-      
       controls.forEach(control => {
         const slider = document.getElementById(control);
         const valueDisplay = document.getElementById(`${control}Value`);
@@ -455,7 +499,7 @@
         });
       });
 
-      // Update perspective threshold display value live
+      // Update perspective threshold display
       const perspectiveThresholdSlider = document.getElementById("perspectiveThreshold");
       perspectiveThresholdSlider.addEventListener("input", (e) => {
         document.getElementById("perspectiveThresholdValue").textContent = e.target.value;
@@ -463,26 +507,76 @@
     }
 
     function updateTextureTransform() {
-      if (!shirtMesh.material.map) return;
+      // If in smart wrapping, we’re ignoring standard UV transforms 
+      // in favor of the custom triplanar approach. 
+      // But let's still update the standard map’s transform if in fallback mode.
 
+      let mat = shirtMesh.material;
+      // If using the custom shader, get the “map” from uniforms
+      // but it’s a CanvasTexture with no rotation or offset support in that custom approach.
+      // For demonstration, we’ll only apply transforms if we’re in fallback mode:
+      if (isSmartWrapping) return;
+
+      if (!mat.map) return;
       const repeatX = parseFloat(document.getElementById('repeatX').value);
       const repeatY = parseFloat(document.getElementById('repeatY').value);
       const offsetX = parseFloat(document.getElementById('offsetX').value);
       const offsetY = parseFloat(document.getElementById('offsetY').value);
       const rotation = parseFloat(document.getElementById('rotation').value) * Math.PI / 180;
 
-      shirtMesh.material.map.repeat.set(repeatX, repeatY);
-      shirtMesh.material.map.offset.set(offsetX, offsetY);
-      shirtMesh.material.map.rotation = rotation;
-      shirtMesh.material.map.center.set(0.5, 0.5); // Set rotation center to middle of texture
-      shirtMesh.material.map.needsUpdate = true;
+      mat.map.repeat.set(repeatX, repeatY);
+      mat.map.offset.set(offsetX, offsetY);
+      mat.map.rotation = rotation;
+      mat.map.center.set(0.5, 0.5); 
+      mat.map.needsUpdate = true;
     }
 
     /*************************************
-     * Perspective Wrapping: Additional Wrapping Controls
+     * Material Controls
+     *************************************/
+    function setupMaterialControls() {
+      // For demonstration, we’ll just show metalness and roughness for the fallbackMaterial.
+      const materialControlsContainer = document.createElement('div');
+      materialControlsContainer.className = 'material-controls';
+      materialControlsContainer.innerHTML = `
+        <h4>Material Parameters</h4>
+        <div class="control-group">
+          <label>Metalness: <span id="metalnessValue">${fallbackMaterial.metalness}</span></label>
+          <input type="range" id="metalness" min="0" max="1" step="0.01" value="${fallbackMaterial.metalness}">
+        </div>
+        <div class="control-group">
+          <label>Roughness: <span id="roughnessValue">${fallbackMaterial.roughness}</span></label>
+          <input type="range" id="roughness" min="0" max="1" step="0.01" value="${fallbackMaterial.roughness}">
+        </div>
+      `;
+      document.getElementById('ui-container').appendChild(materialControlsContainer);
+
+      document.getElementById('metalness').addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        document.getElementById('metalnessValue').textContent = val.toFixed(2);
+        if (!isSmartWrapping) {
+          fallbackMaterial.metalness = val;
+        } else {
+          // If we’re in the custom shader, set uniform
+          smartWrapShaderMaterial.uniforms.metalness.value = val;
+        }
+      });
+
+      document.getElementById('roughness').addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        document.getElementById('roughnessValue').textContent = val.toFixed(2);
+        if (!isSmartWrapping) {
+          fallbackMaterial.roughness = val;
+        } else {
+          smartWrapShaderMaterial.uniforms.roughness.value = val;
+        }
+      });
+    }
+
+    /*************************************
+     * Perspective Wrapping 
      *************************************/
     function updatePerspectiveWrapping() {
-      // Only update if the "Perspective Wrapping" checkbox is enabled.
       const perspectiveEnabled = document.getElementById("perspectiveWrapping").checked;
       if (!perspectiveEnabled) return;
 
@@ -490,26 +584,23 @@
       const wrapSValue = document.getElementById("wrapS").value;
       const wrapTValue = document.getElementById("wrapT").value;
 
-      // Get camera's current view direction.
       let camDir = new THREE.Vector3();
       camera.getWorldDirection(camDir);
 
-      // Assume the model's front is along the +Z axis.
       const modelForward = new THREE.Vector3(0, 0, 1);
       const dot = camDir.dot(modelForward);
 
-      // If the camera is within the threshold (i.e. looking at the front of the model),
-      // apply the selected wrapping modes.
+      // If camera is within threshold
       if (dot > threshold) {
-        if (shirtMesh.material.map) {
+        // Only if not in smart wrapping
+        if (!isSmartWrapping && shirtMesh.material.map) {
           shirtMesh.material.map.wrapS = THREE[wrapSValue];
           shirtMesh.material.map.wrapT = THREE[wrapTValue];
           shirtMesh.material.map.needsUpdate = true;
         }
       } else {
-        // Otherwise, you can revert to your default wrapping mode,
-        // for example, to THREE.RepeatWrapping.
-        if (shirtMesh.material.map) {
+        // revert to repeat
+        if (!isSmartWrapping && shirtMesh.material.map) {
           shirtMesh.material.map.wrapS = THREE.RepeatWrapping;
           shirtMesh.material.map.wrapT = THREE.RepeatWrapping;
           shirtMesh.material.map.needsUpdate = true;
@@ -522,14 +613,107 @@
      *************************************/
     function animate() {
       requestAnimationFrame(animate);
-      //orbitControls.update();
-      updatePerspectiveWrapping(); // Updates our additional wrapping only when active
+      orbitControls.update();
+      updatePerspectiveWrapping();
       render();
     }
 
     function render() {
       renderer.render(scene, camera);
     }
+
+    /*************************************
+     * Example: Call out to your Python “Segment Anything” backend
+     *************************************/
+    async function sendToSegmentAnything(canvas) {
+      // This is just a stub showing how you might send the cropped
+      // portion of the user’s image to a Python server that uses
+      // “segment-anything-2”.
+      // The server might respond with a new dataURL or mask or processed image.
+      try {
+        const dataURL = canvas.toDataURL();
+        const resp = await fetch('http://localhost:5000/segment-anything', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageDataUrl: dataURL })
+        });
+        if (resp.ok) {
+          const result = await resp.json();
+          // e.g. result.processedDataUrl
+          return result.processedDataUrl;
+        }
+      } catch (err) {
+        console.error(err);
+      }
+      return null; // fallback
+    }
   </script>
+</head>
+<body>
+  <!-- 3D Scene -->
+  <div id="canvas-container"></div>
+
+  <!-- UI Sidebar -->
+  <div id="ui-container">
+    <h3>Garment Selection Region</h3>
+    <div id="sourceImageCanvasWrapper">
+      <canvas id="sourceImageCanvas" width="400" height="300"></canvas>
+      <div id="selectionBox"></div>
+    </div>
+    <button id="applyButton">Apply to Model</button>
+    <button id="toggleNormalMap">Toggle Normal Map</button>
+    <button id="toggleMaterial">Toggle Phong Material</button>
+
+    <div class="texture-controls">
+      <h4>Texture Controls</h4>
+      <div class="control-group">
+        <label>Repeat X: <span id="repeatXValue">1</span></label>
+        <input type="range" id="repeatX" min="0.1" max="5" step="0.1" value="1">
+      </div>
+      <div class="control-group">
+        <label>Repeat Y: <span id="repeatYValue">1</span></label>
+        <input type="range" id="repeatY" min="0.1" max="5" step="0.1" value="1">
+      </div>
+      <div class="control-group">
+        <label>Offset X: <span id="offsetXValue">0</span></label>
+        <input type="range" id="offsetX" min="-1" max="1" step="0.1" value="0">
+      </div>
+      <div class="control-group">
+        <label>Offset Y: <span id="offsetYValue">0</span></label>
+        <input type="range" id="offsetY" min="-1" max="1" step="0.1" value="0">
+      </div>
+      <div class="control-group">
+        <label>Rotation: <span id="rotationValue">0°</span></label>
+        <input type="range" id="rotation" min="0" max="360" step="1" value="0">
+      </div>
+
+      <div class="control-group">
+        <label>Perspective Wrapping:</label>
+        <input type="checkbox" id="perspectiveWrapping">
+      </div>
+      <div class="control-group">
+        <label>Wrap S:</label>
+        <select id="wrapS">
+          <option value="RepeatWrapping">Repeat</option>
+          <option value="ClampToEdgeWrapping">Clamp</option>
+          <option value="MirroredRepeatWrapping">Mirrored Repeat</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>Wrap T:</label>
+        <select id="wrapT">
+          <option value="RepeatWrapping">Repeat</option>
+          <option value="ClampToEdgeWrapping">Clamp</option>
+          <option value="MirroredRepeatWrapping">Mirrored Repeat</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>Perspective Threshold (dot product): <span id="perspectiveThresholdValue">0.5</span></label>
+        <input type="range" id="perspectiveThreshold" min="0" max="1" step="0.01" value="0.5">
+      </div>
+    </div>
+
+    <p class="hint">Drag & drop an image onto the 3D view to replace this source image.</p>
+  </div>
 </body>
 </html>
