@@ -79,13 +79,14 @@
 
   <!-- UI Sidebar -->
   <div id="ui-container">
-    <h3>Garment Region Selection</h3>
+    <h3>Garment Selection Region </h3>
     <div id="sourceImageCanvasWrapper">
       <canvas id="sourceImageCanvas" width="400" height="300"></canvas>
       <div id="selectionBox"></div>
     </div>
     <button id="applyButton">Apply to Model</button>
     <button id="toggleNormalMap">Toggle Normal Map</button>
+    <button id="toggleMaterial">Toggle Phong Material</button>
     <p class="hint">Drag & drop an image onto the 3D view to replace this source image.</p>
   </div>
 
@@ -105,6 +106,7 @@
     let sourceImage; // Store the last dropped/loaded image
     let showNormalMap = false;
     let normalMapTexture;
+    let isPhongMaterial = false;
 
     // Wait for DOM to be ready
     document.addEventListener('DOMContentLoaded', () => {
@@ -171,10 +173,16 @@
       shirtTexture = new THREE.TextureLoader().load('https://picsum.photos/id/237/200/300');
       normalMapTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/waternormals.jpg');
       
-      const shirtMaterial = new THREE.MeshStandardMaterial({ 
-          map: shirtTexture,
-          normalMap: normalMapTexture,
-          normalScale: new THREE.Vector2(1, 1)
+      const shirtMaterial = new THREE.MeshPhysicalMaterial({ 
+          color: 0x049ef4,  // Bright blue color matching the reference
+          metalness: 0.3,
+          roughness: 0.2,
+          clearcoat: 1.0,
+          clearcoatRoughness: 0.1,
+          envMapIntensity: 1.0,
+          transparent: false,
+          opacity: 1,
+          side: THREE.FrontSide
       });
       
       shirtMesh = new THREE.Mesh(vaseGeometry, shirtMaterial);
@@ -216,6 +224,29 @@
           shirtMesh.material.normalMap = normalMapTexture;
         } else {
           shirtMesh.material.normalMap = null;
+        }
+        shirtMesh.material.needsUpdate = true;
+      });
+
+      // Add material toggle button handler
+      document.getElementById("toggleMaterial").addEventListener("click", () => {
+        isPhongMaterial = !isPhongMaterial;
+        const currentMap = shirtMesh.material.map;
+        const currentNormalMap = shirtMesh.material.normalMap;
+        
+        if (isPhongMaterial) {
+          shirtMesh.material = new THREE.MeshPhongMaterial({
+            map: currentMap,
+            normalMap: currentNormalMap,
+            normalScale: new THREE.Vector2(1, 1),
+            shininess: 30
+          });
+        } else {
+          shirtMesh.material = new THREE.MeshStandardMaterial({
+            map: currentMap,
+            normalMap: currentNormalMap,
+            normalScale: new THREE.Vector2(1, 1)
+          });
         }
         shirtMesh.material.needsUpdate = true;
       });
