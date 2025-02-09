@@ -2,6 +2,17 @@
 [text](https://cgi-tools.dev/)
 
 
+
+
+
+
+# Prior art
+1. [text](https://threejs.org/examples/?q=texture#webgl_materials_texture_canvas)
+2. [text](https://threejs.org/examples/?q=texture#webgl_materials_texture_partialupdate)
+3. [text](https://threejs.org/examples/?q=texture#webgpu_textures_partialupdate)
+4. [text](https://threejs.org/examples/?q=texture#webgpu_compute_texture)
+
+
 Detailed Feature Requirements:
 
 1. Image-to-Mockup Conversion
