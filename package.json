@@ -2,6 +2,9 @@
   "name": "vizcom-demo",
   "module": "server.js",
   "type": "module",
+  "scripts": {
+    "dev": "bun run --watch server.js"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
