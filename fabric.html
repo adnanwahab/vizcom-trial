@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Image Transform Demo</title>
+  <title>Image Transform Demo (Switching Backgrounds)</title>
   <style>
     canvas {
       border: 1px solid #ccc;
@@ -13,93 +13,128 @@
   </style>
 </head>
 <body>
-  <h1>Image Transform Demo (using Fabric.js)</h1>
+  <h1>Fabric.js - Switch Between Vase & Cup</h1>
   
-  <!-- Our canvas where images will be placed -->
   <canvas id="demoCanvas" width="700" height="500"></canvas>
-  
+
   <div id="controls">
-    <!-- <button id="bringToFront">Bring Illustration to Front</button>
-    <button id="sendToBack">Send Illustration to Back</button> -->
-
-    <button id="segment-anything-2">Run Segment Anything 2</button>
-
+    <button id="bringToFront">Bring to Front</button>
+    <button id="sendToBack">Send to Back</button>
+    <button id="switchToCup">Switch to Cup</button>
   </div>
   
-  <!-- Fabric.js from CDN (you can host yourself) -->
+  <!-- Fabric.js from CDN -->
   <script
-  src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.4/fabric.min.js"
-  integrity="sha512-HkRNCiaZYxQAkHpLFYI90ObSzL0vaIXL8Xe3bM51vhdYI79RDFMLTAsmVH1xVPREmTlUWexgrQMk+c3RBTsLGw=="
-  crossorigin="anonymous"
-  referrerpolicy="no-referrer">
-</script>
-
+    src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.4/fabric.min.js"
+    integrity="sha512-HkRNCiaZYxQAkHpLFYI90ObSzL0vaIXL8Xe3bM51vhdYI79RDFMLTAsmVH1xVPREmTlUWexgrQMk+c3RBTsLGw=="
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer">
+  </script>
+  
   <script>
-    document.querySelector('#segment-anything-2').addEventListener('click', function () {
-        
-    })
+    // We'll store references to the background object & decal to remove/replace them later
+    let backgroundObj = null;
+    let decalObj = null;
 
+    // Vase & Cup images
+    const vaseURL  = '/public/vase.png';
+    const cupURL   = '/public/cup.png'; 
+                     // You might want an actual cup photo
 
-    // Wait for the DOM to load
-    window.onload = function() {
-      // Create the Fabric.js canvas
-      const canvas = new fabric.Canvas('demoCanvas');
+    // Decals
+    const vaseDecalURL = '/public/sticker.png';
+    const cupDecalURL  = '/public/decal_2.png'; 
+                         // Some other decal image
 
-      // 1) Load the vase as the *background* image
-      const vaseURL = '/public/cup.png';
-      fabric.Image.fromURL(vaseURL, function(vaseImg) {
-        // Scale it to fit our canvas nicely
-        vaseImg.scaleToHeight(480);
-        // Lock the background so the user can’t move it
-        vaseImg.selectable = false;
-        // Add to canvas
-        canvas.add(vaseImg);
-        // Send behind everything by default
-        canvas.sendToBack(vaseImg);
+    // Create Fabric canvas
+    const canvas = new fabric.Canvas('demoCanvas');
+
+    // Load initial background (Vase) & decal
+    function loadVaseScene() {
+      // 1) Load Vase
+      fabric.Image.fromURL(vaseURL, function(img) {
+        // remove any existing background/decal
+        canvas.remove(backgroundObj);
+        canvas.remove(decalObj);
+
+        // Scale & lock the background
+        img.scaleToHeight(480);
+        img.selectable = false;
+        backgroundObj = img;
+        canvas.add(backgroundObj);
+        canvas.sendToBack(backgroundObj);
       });
-      
-      // 2) Load the illustration (PNG/SVG/whatever)
-      //    For an SVG, you could do color manipulations.
-      //    Here we just do a simpler PNG for demonstration.
-      const illustrationURL = '/public/decal_2.png';
-      fabric.Image.fromURL(illustrationURL, function(illustrationImg) {
-        // Make it reasonably sized
-        illustrationImg.scaleToWidth(200);
-        // Position it somewhere in the middle
-        illustrationImg.set({
+
+      // 2) Load Vase Decal
+      fabric.Image.fromURL(vaseDecalURL, function(img) {
+        // scale/position
+        img.scaleToWidth(200);
+        img.set({
           left: 200,
           top: 150
         });
-        // Allow free transforms (drag/scale/rotate)
-        illustrationImg.setControlsVisibility({
-          mt: true, // middle top
-          mb: true, // middle bottom
-          ml: true, // middle left
-          mr: true, // middle right
-          tl: true, // top-left
-          tr: true, // top-right
-          bl: true, // bottom-left
-          br: true  // bottom-right
-        });
-        canvas.add(illustrationImg);
-        canvas.setActiveObject(illustrationImg);
+        decalObj = img;
+        canvas.add(decalObj);
+        canvas.setActiveObject(decalObj);
+      });
+    }
+
+    // Load Cup background & different decal
+    function loadCupScene() {
+      // 1) Load Cup
+      fabric.Image.fromURL(cupURL, function(img) {
+        // remove old background/decal
+        canvas.remove(backgroundObj);
+        canvas.remove(decalObj);
+
+        // Scale & lock the background
+        img.scaleToHeight(480);
+        img.selectable = false;
+        backgroundObj = img;
+        canvas.add(backgroundObj);
+        canvas.sendToBack(backgroundObj);
       });
 
-      // Optional: Bringing to front/back via buttons
+      // 2) Load Cup Decal
+      fabric.Image.fromURL(cupDecalURL, function(img) {
+        // scale/position
+        img.scaleToWidth(200);
+        img.set({
+          left: 250,
+          top: 120
+        });
+        decalObj = img;
+        canvas.add(decalObj);
+        canvas.setActiveObject(decalObj);
+      });
+    }
+
+    // On page load, initialize with Vase scene
+    window.onload = function() {
+      loadVaseScene(); // start with the vase
+
+      // Bring selected object to front
       document.getElementById('bringToFront').onclick = function() {
         const obj = canvas.getActiveObject();
         if (obj) {
           canvas.bringToFront(obj);
           canvas.renderAll();
         }
-      }
+      };
+
+      // Send selected object to back
       document.getElementById('sendToBack').onclick = function() {
         const obj = canvas.getActiveObject();
         if (obj) {
           canvas.sendToBack(obj);
           canvas.renderAll();
         }
-      }
+      };
+
+      // Switch to Cup background & decal
+      document.getElementById('switchToCup').onclick = function() {
+        loadCupScene();
+      };
     };
   </script>
 </body>
