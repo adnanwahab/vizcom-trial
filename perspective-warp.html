@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Perspective Warp Demo</title>
+  <script src="https://cdn.example.com/canvasPerspective.min.js"></script> 
+  <!-- Replace with a real library that supports perspective warping -->
+  <style>
+    #myCanvas { border: 1px solid #999; }
+  </style>
+</head>
+<body>
+
+<canvas id="myCanvas" width="600" height="400"></canvas>
+
+<script>
+  const canvas = document.getElementById('myCanvas');
+  const ctx = canvas.getContext('2d');
+
+  const bagImg = new Image();
+  bagImg.src = '/public/cup.png';
+
+  const logoImg = new Image();
+  logoImg.src = '/public/decal_2.png';
+
+  let imagesLoaded = 0;
+  function onLoad() {
+    imagesLoaded++;
+    if(imagesLoaded === 2) {
+      // Draw bag on canvas
+      ctx.drawImage(bagImg, 0, 0, canvas.width, canvas.height);
+      
+      // Suppose you know the 4 corner points on the bag 
+      // (tl, tr, br, bl) where the logo should appear.
+      const targetCorners = [
+        {x: 320, y: 140}, // top-left
+        {x: 450, y: 150}, // top-right
+        {x: 460, y: 290}, // bottom-right
+        {x: 310, y: 280}  // bottom-left
+      ];
+
+      // The library might let us do something like:
+      warpImage(ctx, logoImg, targetCorners);
+      // or:
+      // perspective.drawImageWarp(ctx, logoImg, sourceCorners, targetCorners);
+
+    }
+  }
+
+  bagImg.onload = onLoad;
+  logoImg.onload = onLoad;
+</script>
+
+</body>
+</html>
