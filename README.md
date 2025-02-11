@@ -8,6 +8,7 @@
 
 # Work Log Feb 11 - fabric.js + segment
 9am used original cup at https://cgi-tools.dev/fabric
+12:30 got segment-anything2 working on cup - https://github.com/adnanwahab/vizcom-trial/blob/main/sam2/notebooks/image_predictor_example.ipynb
 
 
 
