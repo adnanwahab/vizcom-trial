@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Image Transform Demo</title>
+  <style>
+    canvas {
+      border: 1px solid #ccc;
+      margin-top: 1em;
+    }
+    #controls {
+      margin-top: 0.5em;
+    }
+  </style>
+</head>
+<body>
+  <h1>Image Transform Demo (using Fabric.js)</h1>
+  
+  <!-- Our canvas where images will be placed -->
+  <canvas id="demoCanvas" width="700" height="500"></canvas>
+  
+  <div id="controls">
+    <button id="bringToFront">Bring Illustration to Front</button>
+    <button id="sendToBack">Send Illustration to Back</button>
+  </div>
+  
+  <!-- Fabric.js from CDN (you can host yourself) -->
+  <script
+  src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.4/fabric.min.js"
+  integrity="sha512-HkRNCiaZYxQAkHpLFYI90ObSzL0vaIXL8Xe3bM51vhdYI79RDFMLTAsmVH1xVPREmTlUWexgrQMk+c3RBTsLGw=="
+  crossorigin="anonymous"
+  referrerpolicy="no-referrer">
+</script>
+
+  <script>
+    // Wait for the DOM to load
+    window.onload = function() {
+      // Create the Fabric.js canvas
+      const canvas = new fabric.Canvas('demoCanvas');
+
+      // 1) Load the vase as the *background* image
+      const vaseURL = '/public/vase.png';
+      fabric.Image.fromURL(vaseURL, function(vaseImg) {
+        // Scale it to fit our canvas nicely
+        vaseImg.scaleToHeight(480);
+        // Lock the background so the user can’t move it
+        vaseImg.selectable = false;
+        // Add to canvas
+        canvas.add(vaseImg);
+        // Send behind everything by default
+        canvas.sendToBack(vaseImg);
+      });
+      
+      // 2) Load the illustration (PNG/SVG/whatever)
+      //    For an SVG, you could do color manipulations.
+      //    Here we just do a simpler PNG for demonstration.
+      const illustrationURL = '/public/sticker.png';
+      fabric.Image.fromURL(illustrationURL, function(illustrationImg) {
+        // Make it reasonably sized
+        illustrationImg.scaleToWidth(200);
+        // Position it somewhere in the middle
+        illustrationImg.set({
+          left: 200,
+          top: 150
+        });
+        // Allow free transforms (drag/scale/rotate)
+        illustrationImg.setControlsVisibility({
+          mt: true, // middle top
+          mb: true, // middle bottom
+          ml: true, // middle left
+          mr: true, // middle right
+          tl: true, // top-left
+          tr: true, // top-right
+          bl: true, // bottom-left
+          br: true  // bottom-right
+        });
+        canvas.add(illustrationImg);
+        canvas.setActiveObject(illustrationImg);
+      });
+
+      // Optional: Bringing to front/back via buttons
+      document.getElementById('bringToFront').onclick = function() {
+        const obj = canvas.getActiveObject();
+        if (obj) {
+          canvas.bringToFront(obj);
+          canvas.renderAll();
+        }
+      }
+      document.getElementById('sendToBack').onclick = function() {
+        const obj = canvas.getActiveObject();
+        if (obj) {
+          canvas.sendToBack(obj);
+          canvas.renderAll();
+        }
+      }
+    };
+  </script>
+</body>
+</html>

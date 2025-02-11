@@ -1,0 +1,11 @@
+[project]
+name = "vizcom-demo"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi[standard]>=0.115.8",
+    "replicate>=1.0.4",
+    "torch>=2.6.0",
+]

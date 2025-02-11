@@ -2,7 +2,16 @@
 [text](https://cgi-tools.dev/)
 
 
-
+```bash
+cd sam2
+# mamba env create -f environment.yml
+mamba create -n sam2 python=3.9 -y
+mamba activate sam2
+mamba install fastapi uvicorn numpy pillow -c conda-forge
+mamba install pytorch torchvision torchaudio cudatoolkit=11.8 -c pytorch
+pip install -e .
+uvicorn script:app --reload --port 8000
+```
 
 
 
