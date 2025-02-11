@@ -1,10 +1,13 @@
+import numpy as np
+from PIL import Image
+
 def isolate_cup_from_image():
     from sam2.build_sam import build_sam2
     from sam2.sam2_image_predictor import SAM2ImagePredictor
 
-    import numpy as np
+ 
     import torch
-    from PIL import Image
+
     import matplotlib.pyplot as plt
 
     # 1. Load model and create predictor
@@ -34,16 +37,17 @@ def isolate_cup_from_image():
     cup_mask = masks[best_idx]  # shape [H, W]
 
     # (Optional) Show the mask
-    plt.figure(figsize=(6,6))
-    plt.imshow(image_np)
-    plt.imshow(cup_mask, alpha=0.6) 
-    plt.axis('off')
-    plt.show()
-    print("yay image saved")
+    # plt.figure(figsize=(6,6))
+    # plt.imshow(image_np)
+    # plt.imshow(cup_mask, alpha=0.6) 
+    # plt.axis('off')
+    # plt.show()
+    # print("yay image saved")
+    return cup_mask, image_np
 
 
 
-def crop_image():
+def crop_image(cup_mask, image_np):
     import cv2
 
     # Convert True/False to 0/255
@@ -106,5 +110,6 @@ def generate_three_dimensional_model():
 
 #if __name__ == "main":
 print('cool beans')
-isolate_cup_from_image()
+cup_mask, image_np = isolate_cup_from_image()
 print('cool bean 2')
+crop_image(cup_mask, image_np)
