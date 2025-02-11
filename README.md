@@ -1,3 +1,27 @@
+
+
+
+
+
+
+
+
+# Work Log Feb 11 - fabric.js + segment
+9am used original cup at https://cgi-tools.dev/fabric
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # vizcom-trial
 [text](https://cgi-tools.dev/)
 

@@ -19,8 +19,11 @@
   <canvas id="demoCanvas" width="700" height="500"></canvas>
   
   <div id="controls">
-    <button id="bringToFront">Bring Illustration to Front</button>
-    <button id="sendToBack">Send Illustration to Back</button>
+    <!-- <button id="bringToFront">Bring Illustration to Front</button>
+    <button id="sendToBack">Send Illustration to Back</button> -->
+
+    <button id="segment-anything-2">Run Segment Anything 2</button>
+
   </div>
   
   <!-- Fabric.js from CDN (you can host yourself) -->
@@ -32,13 +35,18 @@
 </script>
 
   <script>
+    document.querySelector('#segment-anything-2').addEventListener('click', function () {
+        
+    })
+
+
     // Wait for the DOM to load
     window.onload = function() {
       // Create the Fabric.js canvas
       const canvas = new fabric.Canvas('demoCanvas');
 
       // 1) Load the vase as the *background* image
-      const vaseURL = '/public/vase.png';
+      const vaseURL = '/public/cup.png';
       fabric.Image.fromURL(vaseURL, function(vaseImg) {
         // Scale it to fit our canvas nicely
         vaseImg.scaleToHeight(480);
@@ -53,7 +61,7 @@
       // 2) Load the illustration (PNG/SVG/whatever)
       //    For an SVG, you could do color manipulations.
       //    Here we just do a simpler PNG for demonstration.
-      const illustrationURL = '/public/sticker.png';
+      const illustrationURL = '/public/decal_2.png';
       fabric.Image.fromURL(illustrationURL, function(illustrationImg) {
         // Make it reasonably sized
         illustrationImg.scaleToWidth(200);
